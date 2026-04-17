@@ -26,29 +26,23 @@ fi
 
 TOTAL="$(printf '%s' "$BLOCK" | jq -r '.totalTokens')"
 END="$(printf '%s' "$BLOCK" | jq -r '.endTime')"
-PROJECTED="$(printf '%s' "$BLOCK" | jq -r '.projection.totalTokens // .totalTokens')"
+PROJECTED_TOKENS="$(printf '%s' "$BLOCK" | jq -r '.projection.totalTokens // .totalTokens')"
 REMAIN_MIN="$(printf '%s' "$BLOCK" | jq -r '.projection.remainingMinutes // 0')"
 BURN_RATE="$(printf '%s' "$BLOCK" | jq -r '.burnRate.tokensPerMinute // 0')"
 CCU_LIMIT="$(printf '%s' "$BLOCK" | jq -r '.tokenLimitStatus.limit // 0')"
+COST_NOW="$(printf '%s' "$BLOCK" | jq -r '.costUSD // 0')"
+COST_PROJ="$(printf '%s' "$BLOCK" | jq -r '.projection.totalCost // .costUSD // 0')"
 
-# Effective settings (ENV > userConfig > config file).
+# Effective settings.
 MODE="${USAGE_GUARD_MODE:-${CLAUDE_PLUGIN_OPTION_MODE:-$(jq -r '.mode // "auto"' "$CONFIG_FILE")}}"
 TH="${USAGE_GUARD_BLOCK_PCT:-${CLAUDE_PLUGIN_OPTION_BLOCK_PCT:-$(jq -r '.threshold_block_pct' "$CONFIG_FILE")}}"
 WARN="${USAGE_GUARD_WARN_PCT:-${CLAUDE_PLUGIN_OPTION_WARN_PCT:-$(jq -r '.threshold_warn_pct' "$CONFIG_FILE")}}"
-FIXED_LIMIT="${USAGE_GUARD_TOKEN_LIMIT:-${CLAUDE_PLUGIN_OPTION_TOKEN_LIMIT:-$(jq -r '.token_limit_5h' "$CONFIG_FILE")}}"
+FIXED_TOKEN_LIMIT="${USAGE_GUARD_TOKEN_LIMIT:-${CLAUDE_PLUGIN_OPTION_TOKEN_LIMIT:-$(jq -r '.token_limit_5h' "$CONFIG_FILE")}}"
+COST_LIMIT="${USAGE_GUARD_COST_LIMIT:-${CLAUDE_PLUGIN_OPTION_COST_LIMIT:-$(jq -r '.cost_limit_5h_usd // 0' "$CONFIG_FILE")}}"
 BLOCK_ON="${USAGE_GUARD_BLOCK_ON:-${CLAUDE_PLUGIN_OPTION_BLOCK_ON:-$(jq -r '.block_on // "projected"' "$CONFIG_FILE")}}"
+CAL_AT="$(jq -r '.calibration.at // empty' "$CONFIG_FILE" 2>/dev/null)"
+CAL_PCT="$(jq -r '.calibration.anthropic_pct // empty' "$CONFIG_FILE" 2>/dev/null)"
 
-if [[ "$MODE" == "fixed" && -n "$FIXED_LIMIT" && "$FIXED_LIMIT" != "0" ]]; then
-  LIMIT="$FIXED_LIMIT"
-  LIMIT_SOURCE="fixed"
-else
-  LIMIT="$CCU_LIMIT"
-  [[ -z "$LIMIT" || "$LIMIT" == "0" ]] && LIMIT="$FIXED_LIMIT"
-  LIMIT_SOURCE="auto (ccusage max)"
-fi
-
-PCT_CURRENT="$(LC_NUMERIC=C awk -v t="$TOTAL" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
-PCT_PROJ="$(LC_NUMERIC=C awk -v t="$PROJECTED" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
 BURN_FMT="$(LC_NUMERIC=C awk -v r="$BURN_RATE" 'BEGIN{printf "%.0f", r}')"
 
 # Kill-switch.
@@ -61,12 +55,39 @@ else
   STATE="enabled"
 fi
 
+case "$MODE" in
+  cost)
+    LIMIT_SOURCE="cost (calibrated)"
+    LIMIT_DISPLAY="\$$(LC_NUMERIC=C awk -v v="$COST_LIMIT" 'BEGIN{printf "%.2f", v}')"
+    PCT_CURRENT="$(LC_NUMERIC=C awk -v t="$COST_NOW"  -v l="$COST_LIMIT" 'BEGIN{if(l>0) printf "%.1f", (t/l)*100; else print "?"}')"
+    PCT_PROJ="$(   LC_NUMERIC=C awk -v t="$COST_PROJ" -v l="$COST_LIMIT" 'BEGIN{if(l>0) printf "%.1f", (t/l)*100; else print "?"}')"
+    CUR_DISPLAY="\$$(LC_NUMERIC=C awk -v v="$COST_NOW"  'BEGIN{printf "%.2f", v}')"
+    PROJ_DISPLAY="\$$(LC_NUMERIC=C awk -v v="$COST_PROJ" 'BEGIN{printf "%.2f", v}')"
+    ;;
+  fixed)
+    LIMIT_SOURCE="fixed (tokens)"
+    LIMIT_DISPLAY="$FIXED_TOKEN_LIMIT токенов"
+    PCT_CURRENT="$(LC_NUMERIC=C awk -v t="$TOTAL"            -v l="$FIXED_TOKEN_LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
+    PCT_PROJ="$(   LC_NUMERIC=C awk -v t="$PROJECTED_TOKENS" -v l="$FIXED_TOKEN_LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
+    CUR_DISPLAY="$TOTAL токенов"
+    PROJ_DISPLAY="$PROJECTED_TOKENS токенов"
+    ;;
+  *)
+    LIMIT_SOURCE="auto — ccusage max-of-history (НЕ реальный лимит подписки)"
+    LIMIT_DISPLAY="$CCU_LIMIT токенов"
+    PCT_CURRENT="$(LC_NUMERIC=C awk -v t="$TOTAL"            -v l="$CCU_LIMIT" 'BEGIN{if(l>0) printf "%.1f", (t/l)*100; else print "?"}')"
+    PCT_PROJ="$(   LC_NUMERIC=C awk -v t="$PROJECTED_TOKENS" -v l="$CCU_LIMIT" 'BEGIN{if(l>0) printf "%.1f", (t/l)*100; else print "?"}')"
+    CUR_DISPLAY="$TOTAL токенов"
+    PROJ_DISPLAY="$PROJECTED_TOKENS токенов"
+    ;;
+esac
+
 cat <<EOF
 usage-guard ($STATE)
 ============================================
-Текущее:    $TOTAL токенов   (${PCT_CURRENT}% от лимита)
-Прогноз:    $PROJECTED токенов   (${PCT_PROJ}% от лимита)
-Лимит:      $LIMIT токенов   [$LIMIT_SOURCE]
+Текущее:    $CUR_DISPLAY   (${PCT_CURRENT}% от лимита)
+Прогноз:    $PROJ_DISPLAY   (${PCT_PROJ}% от лимита)
+Лимит:      $LIMIT_DISPLAY   [$LIMIT_SOURCE]
 Окно до:    $END   (осталось ${REMAIN_MIN} мин)
 Burn rate:  ${BURN_FMT} токенов/мин
 
@@ -75,13 +96,21 @@ Burn rate:  ${BURN_FMT} токенов/мин
 Config:     $CONFIG_FILE
 EOF
 
-if [[ "$LIMIT_SOURCE" == auto* ]]; then
-  cat <<EOF
+if [[ -n "$CAL_AT" ]]; then
+  echo "Калибровка: ${CAL_PCT}% по Anthropic UI от ${CAL_AT}"
+fi
 
-⚠ Режим auto считает лимитом максимум из истории — это НЕ реальный лимит
-  подписки Anthropic. Для точного %: посмотри реальный лимит в Anthropic UI
-  (claude.ai → Settings → Usage) и зафиксируй его:
-    /usage-guard:set-limit <tokens>       # переключает в fixed с твоим значением
+if [[ "$MODE" == "auto" ]]; then
+  cat <<'EOF'
+
+⚠ Режим auto считает лимитом максимум из истории ccusage — это не реальный
+  лимит подписки. Рекомендуется откалиброваться по Anthropic UI:
+
+    1. Открой claude.ai → Settings → Usage и посмотри % 5h-окна.
+    2. Запусти /usage-guard:calibrate <pct>   (подставь число).
+
+  Плагин переключится в mode=cost (лимит в $USD, учитывает разные модели
+  Opus/Sonnet/Haiku автоматически).
 EOF
 fi
 

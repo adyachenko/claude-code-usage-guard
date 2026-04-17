@@ -2,10 +2,13 @@
   "$comment": "Пороги usage-guard. Реальные лимиты планов Anthropic не публикуют — значения приблизительные, поправь под свой план после нескольких циклов использования. ccusage --token-limit max сам подтянет максимум по истории, если поставить mode=auto.",
 
   "mode": "auto",
-  "$mode_options": "auto|fixed. auto — берёт лимит из ccusage (максимум по истории блоков). fixed — использует поле token_limit_5h.",
+  "$mode_options": "auto | fixed | cost. auto — ccusage max-of-history (неточно). fixed — token_limit_5h. cost — cost_limit_5h_usd (рекомендовано, взвешивает разные модели Opus/Sonnet/Haiku через ценник ccusage).",
 
   "token_limit_5h": 220000000,
-  "$token_limit_5h": "Используется только при mode=fixed. ~220M — черновая оценка для Max 20x.",
+  "$token_limit_5h": "Только при mode=fixed. ~220M — черновая оценка Max 5x.",
+
+  "cost_limit_5h_usd": 0,
+  "$cost_limit_5h_usd": "Только при mode=cost. Калибруется через /usage-guard:calibrate <anthropic_pct>. 0 — не настроено (fallback на auto).",
 
   "threshold_block_pct": 98,
   "threshold_warn_pct": 90,

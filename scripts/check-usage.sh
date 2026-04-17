@@ -121,37 +121,65 @@ TOTAL="$(printf '%s' "$BLOCK" | jq -r '.totalTokens // 0')"
 END_TIME="$(printf '%s' "$BLOCK" | jq -r '.endTime // ""')"
 PROJECTED="$(printf '%s' "$BLOCK" | jq -r '.projection.totalTokens // .totalTokens // 0')"
 CCU_LIMIT="$(printf '%s' "$BLOCK" | jq -r '.tokenLimitStatus.limit // 0')"
+COST_NOW="$(printf '%s' "$BLOCK" | jq -r '.costUSD // 0')"
+COST_PROJ="$(printf '%s' "$BLOCK" | jq -r '.projection.totalCost // .costUSD // 0')"
 
-# --- Token limit resolution ----------------------------------------------
-# fixed — явное значение из конфига, рекомендовано после калибровки против
-# реальных лимитов подписки.
-# auto — лимит из ccusage tokenLimitStatus (максимум наблюдаемых блоков).
-#   ⚠ НЕ равен реальному лимиту подписки, пока в истории нет блока,
-#   упёршегося в лимит. Для точности переключайся в fixed.
-if [[ "$MODE" == "fixed" && -n "$TOKEN_LIMIT_FIXED" && "$TOKEN_LIMIT_FIXED" != "0" ]]; then
-  LIMIT="$TOKEN_LIMIT_FIXED"
-else
-  LIMIT="$CCU_LIMIT"
-  if [[ -z "$LIMIT" || "$LIMIT" == "0" || "$LIMIT" == "null" ]]; then
-    LIMIT="${TOKEN_LIMIT_FIXED:-220000000}"
+# --- Limit resolution ----------------------------------------------------
+# Режимы:
+#   cost   — лимит в $USD. ccusage сам взвешивает модели по их ценам
+#            (Opus ≫ Sonnet ≫ Haiku). Самый надёжный прокси к Anthropic
+#            UI, потому что Anthropic тоже считает «работу», а не сырые
+#            токены. Настраивается через /usage-guard:calibrate.
+#   fixed  — явный token_limit_5h (чувствителен к model-mix, но предсказуем).
+#   auto   — ccusage max-of-history (≠ реальный план).
+COST_LIMIT="${USAGE_GUARD_COST_LIMIT:-${CLAUDE_PLUGIN_OPTION_COST_LIMIT:-$(cfg '.cost_limit_5h_usd')}}"
+: "${COST_LIMIT:=0}"
+
+case "$MODE" in
+  cost)
+    UNIT="\$"
+    if LC_NUMERIC=C awk -v v="$COST_LIMIT" 'BEGIN{exit !(v+0>0)}'; then
+      LIMIT="$COST_LIMIT"
+    else
+      log "mode=cost but no cost_limit_5h_usd configured — falling back to auto-tokens"
+      MODE="auto"
+    fi
+    ;;
+esac
+
+if [[ "$MODE" != "cost" ]]; then
+  UNIT="t"
+  if [[ "$MODE" == "fixed" && -n "$TOKEN_LIMIT_FIXED" && "$TOKEN_LIMIT_FIXED" != "0" ]]; then
+    LIMIT="$TOKEN_LIMIT_FIXED"
+  else
+    LIMIT="$CCU_LIMIT"
+    if [[ -z "$LIMIT" || "$LIMIT" == "0" || "$LIMIT" == "null" ]]; then
+      LIMIT="${TOKEN_LIMIT_FIXED:-220000000}"
+    fi
   fi
 fi
 
 # --- Decision metric -----------------------------------------------------
-# block_on: current — блокировать по текущему потреблению (TOTAL),
-#           projected — по прогнозу полного 5h-окна (PROJECTED). Preemptive.
+# block_on: current — по текущему потреблению; projected — по прогнозу
+#   полного 5h-окна (preemptive, рекомендовано).
 BLOCK_ON="${USAGE_GUARD_BLOCK_ON:-${CLAUDE_PLUGIN_OPTION_BLOCK_ON:-$(cfg '.block_on')}}"
 : "${BLOCK_ON:=projected}"
 
-case "$BLOCK_ON" in
-  current)   METRIC="$TOTAL" ;;
-  projected) METRIC="$PROJECTED" ;;
-  *)         METRIC="$PROJECTED"; BLOCK_ON="projected" ;;
-esac
+if [[ "$MODE" == "cost" ]]; then
+  case "$BLOCK_ON" in
+    current)   METRIC="$COST_NOW" ;;
+    *)         METRIC="$COST_PROJ"; BLOCK_ON="projected" ;;
+  esac
+else
+  case "$BLOCK_ON" in
+    current)   METRIC="$TOTAL" ;;
+    *)         METRIC="$PROJECTED"; BLOCK_ON="projected" ;;
+  esac
+fi
 
 # --- Compute percentage --------------------------------------------------
 
-if (( LIMIT <= 0 )); then
+if LC_NUMERIC=C awk -v v="$LIMIT" 'BEGIN{exit !(v+0<=0)}'; then
   log "bad limit: $LIMIT"
   exit 0
 fi
@@ -159,7 +187,7 @@ fi
 PCT="$(LC_NUMERIC=C awk -v t="$METRIC" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
 PCT_INT="$(LC_NUMERIC=C awk -v t="$METRIC" -v l="$LIMIT" 'BEGIN{printf "%d", (t/l)*100}')"
 
-log "block_on=$BLOCK_ON metric=$METRIC limit=$LIMIT pct=$PCT total=$TOTAL projected=$PROJECTED end=$END_TIME tool=$TOOL_NAME"
+log "mode=$MODE block_on=$BLOCK_ON unit=$UNIT metric=$METRIC limit=$LIMIT pct=$PCT cost_now=$COST_NOW cost_proj=$COST_PROJ tokens_now=$TOTAL tokens_proj=$PROJECTED end=$END_TIME tool=$TOOL_NAME"
 
 # --- Decision ------------------------------------------------------------
 
@@ -183,8 +211,15 @@ if (( PCT_INT >= THRESHOLD )); then
     fi
   fi
 
+  if [[ "$UNIT" == "\$" ]]; then
+    METRIC_FMT="$(LC_NUMERIC=C awk -v v="$METRIC" 'BEGIN{printf "\$%.2f", v}')"
+    LIMIT_FMT="$(LC_NUMERIC=C awk -v v="$LIMIT" 'BEGIN{printf "\$%.2f", v}')"
+  else
+    METRIC_FMT="$METRIC токенов"
+    LIMIT_FMT="$LIMIT токенов"
+  fi
   {
-    echo "[usage-guard] BLOCK: потребление 5-часового лимита достигло ${PCT}% (${TOTAL}/${LIMIT} токенов)."
+    echo "[usage-guard] BLOCK: потребление 5-часового лимита достигло ${PCT}% (${METRIC_FMT} / ${LIMIT_FMT}, метрика=${BLOCK_ON})."
     echo ""
     echo "Действия (строго в этом порядке):"
     echo "  1. Вызови инструмент CronCreate с параметрами:"
