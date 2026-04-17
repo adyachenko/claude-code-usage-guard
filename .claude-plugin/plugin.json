@@ -1,12 +1,21 @@
 {
   "name": "usage-guard",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Мониторит потребление лимитов подписки Claude Code и на пороге автоматически просит агента поставить cron-триггер, чтобы продолжить работу после сброса лимита.",
   "author": {
     "name": "adyachenko"
   },
   "homepage": "https://github.com/adyachenko/claude-code-usage-guard",
+  "repository": "https://github.com/adyachenko/claude-code-usage-guard",
   "license": "MIT",
+  "keywords": [
+    "usage",
+    "rate-limit",
+    "ccusage",
+    "scheduling",
+    "cron",
+    "automation"
+  ],
   "userConfig": {
     "block_pct": {
       "title": "Порог блокировки (%)",
