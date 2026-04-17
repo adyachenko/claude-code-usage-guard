@@ -12,7 +12,7 @@
         "repo": "adyachenko/claude-code-usage-guard"
       },
       "description": "Мониторит потребление 5-часового окна лимита Claude Code через ccusage. При достижении порога блокирует tool call и просит агента поставить CronCreate-триггер на время сброса лимита — сессия возобновляется автоматически с полным контекстом.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "monitoring",
       "keywords": [
         "usage",
