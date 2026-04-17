@@ -1,0 +1,23 @@
+{
+  "$comment": "Пороги usage-guard. Реальные лимиты планов Anthropic не публикуют — значения приблизительные, поправь под свой план после нескольких циклов использования. ccusage --token-limit max сам подтянет максимум по истории, если поставить mode=auto.",
+
+  "mode": "auto",
+  "$mode_options": "auto|fixed. auto — берёт лимит из ccusage (максимум по истории блоков). fixed — использует поле token_limit_5h.",
+
+  "token_limit_5h": 220000000,
+  "$token_limit_5h": "Используется только при mode=fixed. ~220M — черновая оценка для Max 20x.",
+
+  "threshold_block_pct": 98,
+  "threshold_warn_pct": 90,
+
+  "throttle_seconds": 30,
+  "$throttle_seconds": "Минимальный интервал между проверками в секундах. Уменьшает overhead от ccusage.",
+
+  "skip_tools": ["CronCreate", "CronList", "CronDelete", "RemoteTrigger", "ScheduleWakeup"],
+  "$skip_tools": "Инструменты, которые никогда не блокируем — иначе агент не сможет поставить крон после триггера лимита.",
+
+  "resume_prompt": "Лимит сброшен. Продолжай работу с того места, где остановился до паузы по usage-guard.",
+
+  "reset_buffer_minutes": 2,
+  "$reset_buffer_minutes": "Запас после времени сброса, чтобы наверняка попасть в новое окно."
+}

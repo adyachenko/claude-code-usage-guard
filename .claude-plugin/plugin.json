@@ -1,0 +1,10 @@
+{
+  "name": "usage-guard",
+  "version": "0.1.0",
+  "description": "Мониторит потребление лимитов подписки Claude Code и на пороге автоматически просит агента поставить cron-триггер, чтобы продолжить работу после сброса лимита.",
+  "author": {
+    "name": "aleksandr.dyachenko"
+  },
+  "homepage": "",
+  "license": "MIT"
+}
