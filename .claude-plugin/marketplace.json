@@ -19,7 +19,7 @@
         "cron",
         "automation"
       ],
-      "homepage": "https://github.com/aleksandr-dyachenko/claude-code-usage-guard",
+      "homepage": "https://github.com/adyachenko/claude-code-usage-guard",
       "license": "MIT"
     }
   ]

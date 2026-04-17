@@ -41,14 +41,14 @@ bun install -g ccusage     # или: npm i -g ccusage
 Репозиторий одновременно является и плагином, и маркетплейсом — внутри лежит `.claude-plugin/marketplace.json`. В активной сессии Claude Code:
 
 ```
-/plugin marketplace add aleksandr-dyachenko/claude-code-usage-guard
+/plugin marketplace add adyachenko/claude-code-usage-guard
 /plugin install usage-guard@usage-guard
 ```
 
 Либо указать полный URL:
 
 ```
-/plugin marketplace add https://github.com/aleksandr-dyachenko/claude-code-usage-guard
+/plugin marketplace add https://github.com/adyachenko/claude-code-usage-guard
 ```
 
 После установки плагин лежит в `~/.claude/plugins/`, хук подхватится автоматически.
