@@ -1,0 +1,26 @@
+{
+  "name": "usage-guard",
+  "owner": {
+    "name": "aleksandr.dyachenko"
+  },
+  "description": "Плагин-маркетплейс для claude-code-usage-guard — автопаузы Claude Code при приближении к лимиту подписки.",
+  "plugins": [
+    {
+      "name": "usage-guard",
+      "source": ".",
+      "description": "Мониторит потребление 5-часового окна лимита Claude Code через ccusage. При достижении порога блокирует tool call и просит агента поставить CronCreate-триггер на время сброса лимита — сессия возобновляется автоматически с полным контекстом.",
+      "version": "0.1.0",
+      "category": "monitoring",
+      "keywords": [
+        "usage",
+        "rate-limit",
+        "ccusage",
+        "scheduling",
+        "cron",
+        "automation"
+      ],
+      "homepage": "https://github.com/aleksandr-dyachenko/claude-code-usage-guard",
+      "license": "MIT"
+    }
+  ]
+}

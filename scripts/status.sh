@@ -26,26 +26,54 @@ fi
 
 TOTAL="$(printf '%s' "$BLOCK" | jq -r '.totalTokens')"
 END="$(printf '%s' "$BLOCK" | jq -r '.endTime')"
-MODE="$(jq -r '.mode // "auto"' "$CONFIG_FILE")"
-TH="$(jq -r '.threshold_block_pct' "$CONFIG_FILE")"
-WARN="$(jq -r '.threshold_warn_pct' "$CONFIG_FILE")"
+
+# Effective settings: ENV > config file (совпадает с логикой check-usage.sh).
+MODE="${USAGE_GUARD_MODE:-$(jq -r '.mode // "auto"' "$CONFIG_FILE")}"
+TH="${USAGE_GUARD_BLOCK_PCT:-$(jq -r '.threshold_block_pct' "$CONFIG_FILE")}"
+WARN="${USAGE_GUARD_WARN_PCT:-$(jq -r '.threshold_warn_pct' "$CONFIG_FILE")}"
+FIXED_LIMIT="${USAGE_GUARD_TOKEN_LIMIT:-$(jq -r '.token_limit_5h' "$CONFIG_FILE")}"
 
 if [[ "$MODE" == "fixed" ]]; then
-  LIMIT="$(jq -r '.token_limit_5h' "$CONFIG_FILE")"
+  LIMIT="$FIXED_LIMIT"
 else
   ALL="$("${CCU[@]}" blocks --json 2>/dev/null)"
   LIMIT="$(printf '%s' "$ALL" | jq -r '[.blocks[].totalTokens // 0] | max // 0')"
-  [[ -z "$LIMIT" || "$LIMIT" == "0" ]] && LIMIT="$(jq -r '.token_limit_5h' "$CONFIG_FILE")"
+  [[ -z "$LIMIT" || "$LIMIT" == "0" ]] && LIMIT="$FIXED_LIMIT"
 fi
 
 PCT="$(LC_NUMERIC=C awk -v t="$TOTAL" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
 
+# Kill-switch состояние.
+KILL_SWITCH="${XDG_STATE_HOME:-$HOME/.local/state}/usage-guard/disabled"
+if [[ "${USAGE_GUARD_DISABLE:-}" == "1" ]]; then
+  STATE="DISABLED (env USAGE_GUARD_DISABLE=1)"
+elif [[ -f "$KILL_SWITCH" ]]; then
+  STATE="DISABLED (флаг: $KILL_SWITCH)"
+else
+  STATE="enabled"
+fi
+
+# Активные env-override.
+OVERRIDES=""
+for v in USAGE_GUARD_MODE USAGE_GUARD_BLOCK_PCT USAGE_GUARD_WARN_PCT \
+         USAGE_GUARD_TOKEN_LIMIT USAGE_GUARD_THROTTLE USAGE_GUARD_BUFFER_MIN \
+         USAGE_GUARD_RESUME_PROMPT; do
+  val="${!v:-}"
+  [[ -n "$val" ]] && OVERRIDES+="  $v=$val"$'\n'
+done
+
 cat <<EOF
-usage-guard
-===========
+usage-guard ($STATE)
+============================================
 5-часовое окно: использовано $TOTAL из $LIMIT токенов (${PCT}%)
 Окно закрывается: $END
-Режим лимита: $MODE
-Пороги: warn=${WARN}%  block=${TH}%
-Config: $CONFIG_FILE
+Режим лимита:   $MODE
+Пороги:         warn=${WARN}%  block=${TH}%
+Config file:    $CONFIG_FILE
 EOF
+
+if [[ -n "$OVERRIDES" ]]; then
+  echo ""
+  echo "Активные ENV-override:"
+  printf '%s' "$OVERRIDES"
+fi

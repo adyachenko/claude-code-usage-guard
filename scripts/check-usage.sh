@@ -14,8 +14,17 @@ CONFIG_DEFAULT="${PLUGIN_ROOT}/config/limits.json"
 mkdir -p "$STATE_DIR"
 LOCK="$STATE_DIR/last-check"
 LOG="$STATE_DIR/hook.log"
+KILL_SWITCH="$STATE_DIR/disabled"
 
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG"; }
+
+# --- Kill switches --------------------------------------------------------
+# Runtime-переключатели — проверяются до всего остального.
+#   USAGE_GUARD_DISABLE=1  или  флаг-файл $STATE_DIR/disabled
+#   → хук сразу пропускает вызов.
+if [[ "${USAGE_GUARD_DISABLE:-}" == "1" || -f "$KILL_SWITCH" ]]; then
+  exit 0
+fi
 
 # --- Dependencies ---------------------------------------------------------
 
@@ -53,13 +62,16 @@ fi
 
 cfg() { jq -r "$1 // empty" "$CONFIG_FILE" 2>/dev/null; }
 
-MODE="$(cfg '.mode')"
-THRESHOLD="$(cfg '.threshold_block_pct')"
-WARN="$(cfg '.threshold_warn_pct')"
-THROTTLE="$(cfg '.throttle_seconds')"
-TOKEN_LIMIT_FIXED="$(cfg '.token_limit_5h')"
-RESUME_PROMPT="$(cfg '.resume_prompt')"
-BUFFER_MIN="$(cfg '.reset_buffer_minutes')"
+# Приоритет: ENV > user config > default config > hard-coded fallback.
+# ENV-переменные позволяют переопределить настройки на лету из терминала:
+#   USAGE_GUARD_BLOCK_PCT=95 claude
+MODE="${USAGE_GUARD_MODE:-$(cfg '.mode')}"
+THRESHOLD="${USAGE_GUARD_BLOCK_PCT:-$(cfg '.threshold_block_pct')}"
+WARN="${USAGE_GUARD_WARN_PCT:-$(cfg '.threshold_warn_pct')}"
+THROTTLE="${USAGE_GUARD_THROTTLE:-$(cfg '.throttle_seconds')}"
+TOKEN_LIMIT_FIXED="${USAGE_GUARD_TOKEN_LIMIT:-$(cfg '.token_limit_5h')}"
+RESUME_PROMPT="${USAGE_GUARD_RESUME_PROMPT:-$(cfg '.resume_prompt')}"
+BUFFER_MIN="${USAGE_GUARD_BUFFER_MIN:-$(cfg '.reset_buffer_minutes')}"
 SKIP_LIST="$(jq -r '.skip_tools[]? // empty' "$CONFIG_FILE" 2>/dev/null)"
 
 : "${MODE:=auto}"
