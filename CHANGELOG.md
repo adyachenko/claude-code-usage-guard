@@ -2,6 +2,26 @@
 
 Semver: MAJOR.MINOR.PATCH.
 
+## [0.2.0] — 2026-04-17
+
+- **Прогноз вместо текущего потребления**: новая опция `block_on`
+  (projected | current, default=projected). Блокировка срабатывает по
+  прогнозируемому использованию полного 5h-окна от ccusage, а не по
+  текущему счётчику. Ловит trajectory заранее.
+- **Новая команда `/usage-guard:set-limit <tokens>`**: задаёт жёсткий
+  лимит и переключает `mode=fixed`. Принимает суффиксы `k/m/b/g`
+  (`44m`, `220M`, `1.1b`).
+- **Расширенный `/usage-guard:status`**: показывает текущее потребление,
+  прогноз, burn rate, оставшееся время до сброса, источник лимита
+  (auto/fixed) и warning про auto-режим.
+- **Источник лимита**: auto теперь читает `tokenLimitStatus.limit` из
+  ccusage (через `--token-limit max`) вместо собственного подсчёта max
+  по истории.
+
+⚠ Breaking/поведение: блокировка теперь по прогнозу — обычно жёстче.
+Чтобы вернуть старое поведение: `/usage-guard:set-threshold` и
+`USAGE_GUARD_BLOCK_ON=current` в окружении.
+
 ## [0.1.4] — 2026-04-17
 
 - **marketplace.json**: `source` переведён с `github`-объекта на relative path `"./"`.

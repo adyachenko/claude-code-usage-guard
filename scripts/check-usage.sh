@@ -102,8 +102,10 @@ fi
 printf '%s' "$NOW" >"$LOCK"
 
 # --- ccusage query --------------------------------------------------------
-
-CCU_OUT="$("${CCUSAGE_CMD[@]}" blocks --json --active 2>/dev/null || true)"
+# --token-limit max — ccusage сам вычисляет limit как максимум наблюдаемых
+# блоков и добавляет поля tokenLimitStatus{limit,projectedUsage,percentUsed}
+# и projection{totalTokens,remainingMinutes}.
+CCU_OUT="$("${CCUSAGE_CMD[@]}" blocks --json --active --token-limit max 2>/dev/null || true)"
 if [[ -z "$CCU_OUT" ]]; then
   log "ccusage returned empty output"
   exit 0
@@ -117,20 +119,35 @@ fi
 
 TOTAL="$(printf '%s' "$BLOCK" | jq -r '.totalTokens // 0')"
 END_TIME="$(printf '%s' "$BLOCK" | jq -r '.endTime // ""')"
+PROJECTED="$(printf '%s' "$BLOCK" | jq -r '.projection.totalTokens // .totalTokens // 0')"
+CCU_LIMIT="$(printf '%s' "$BLOCK" | jq -r '.tokenLimitStatus.limit // 0')"
 
 # --- Token limit resolution ----------------------------------------------
-
-if [[ "$MODE" == "fixed" && -n "$TOKEN_LIMIT_FIXED" ]]; then
+# fixed — явное значение из конфига, рекомендовано после калибровки против
+# реальных лимитов подписки.
+# auto — лимит из ccusage tokenLimitStatus (максимум наблюдаемых блоков).
+#   ⚠ НЕ равен реальному лимиту подписки, пока в истории нет блока,
+#   упёршегося в лимит. Для точности переключайся в fixed.
+if [[ "$MODE" == "fixed" && -n "$TOKEN_LIMIT_FIXED" && "$TOKEN_LIMIT_FIXED" != "0" ]]; then
   LIMIT="$TOKEN_LIMIT_FIXED"
 else
-  # auto: берём максимум totalTokens по всем историческим блокам.
-  ALL_OUT="$("${CCUSAGE_CMD[@]}" blocks --json 2>/dev/null || true)"
-  LIMIT="$(printf '%s' "$ALL_OUT" | jq -r '[.blocks[].totalTokens // 0] | max // 0' 2>/dev/null)"
-  # Защита от нулевого лимита (нет истории) — fallback на fixed.
+  LIMIT="$CCU_LIMIT"
   if [[ -z "$LIMIT" || "$LIMIT" == "0" || "$LIMIT" == "null" ]]; then
     LIMIT="${TOKEN_LIMIT_FIXED:-220000000}"
   fi
 fi
+
+# --- Decision metric -----------------------------------------------------
+# block_on: current — блокировать по текущему потреблению (TOTAL),
+#           projected — по прогнозу полного 5h-окна (PROJECTED). Preemptive.
+BLOCK_ON="${USAGE_GUARD_BLOCK_ON:-${CLAUDE_PLUGIN_OPTION_BLOCK_ON:-$(cfg '.block_on')}}"
+: "${BLOCK_ON:=projected}"
+
+case "$BLOCK_ON" in
+  current)   METRIC="$TOTAL" ;;
+  projected) METRIC="$PROJECTED" ;;
+  *)         METRIC="$PROJECTED"; BLOCK_ON="projected" ;;
+esac
 
 # --- Compute percentage --------------------------------------------------
 
@@ -139,12 +156,10 @@ if (( LIMIT <= 0 )); then
   exit 0
 fi
 
-# Percentage с одним знаком после запятой — через awk, без bc.
-# LC_NUMERIC=C — чтобы разделитель всегда был точка, не запятая (локаль-independent).
-PCT="$(LC_NUMERIC=C awk -v t="$TOTAL" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
-PCT_INT="$(LC_NUMERIC=C awk -v t="$TOTAL" -v l="$LIMIT" 'BEGIN{printf "%d", (t/l)*100}')"
+PCT="$(LC_NUMERIC=C awk -v t="$METRIC" -v l="$LIMIT" 'BEGIN{printf "%.1f", (t/l)*100}')"
+PCT_INT="$(LC_NUMERIC=C awk -v t="$METRIC" -v l="$LIMIT" 'BEGIN{printf "%d", (t/l)*100}')"
 
-log "used=$TOTAL limit=$LIMIT pct=$PCT end=$END_TIME tool=$TOOL_NAME"
+log "block_on=$BLOCK_ON metric=$METRIC limit=$LIMIT pct=$PCT total=$TOTAL projected=$PROJECTED end=$END_TIME tool=$TOOL_NAME"
 
 # --- Decision ------------------------------------------------------------
 

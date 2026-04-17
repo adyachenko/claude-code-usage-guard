@@ -10,6 +10,9 @@
   "threshold_block_pct": 98,
   "threshold_warn_pct": 90,
 
+  "block_on": "projected",
+  "$block_on": "current — блокировать по текущему TOTAL; projected — по прогнозу полного 5h-блока (рекомендовано, preemptive).",
+
   "throttle_seconds": 30,
   "$throttle_seconds": "Минимальный интервал между проверками в секундах. Уменьшает overhead от ccusage.",
 

@@ -1,6 +1,6 @@
 {
   "name": "usage-guard",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Мониторит потребление лимитов подписки Claude Code и на пороге автоматически просит агента поставить cron-триггер, чтобы продолжить работу после сброса лимита.",
   "author": {
     "name": "adyachenko"
@@ -50,6 +50,13 @@
       "type": "number",
       "description": "Реже запускать ccusage, чтобы снизить накладные расходы хука.",
       "default": 30,
+      "sensitive": false
+    },
+    "block_on": {
+      "title": "Метрика для блокировки",
+      "type": "string",
+      "description": "current — блокировать по текущему потреблению; projected — по прогнозу полного 5h-окна (preemptive, рекомендовано).",
+      "default": "projected",
       "sensitive": false
     },
     "resume_prompt": {
