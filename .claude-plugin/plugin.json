@@ -6,5 +6,43 @@
     "name": "adyachenko"
   },
   "homepage": "https://github.com/adyachenko/claude-code-usage-guard",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "block_pct": {
+      "type": "number",
+      "description": "Процент потребления 5-часового окна, при котором плагин блокирует tool call и просит агента поставить CronCreate-триггер. Рекомендовано 95–98.",
+      "default": 98,
+      "sensitive": false
+    },
+    "warn_pct": {
+      "type": "number",
+      "description": "Процент, при котором в stderr выводится предупреждение (агенту видно, но вызов пропускается).",
+      "default": 90,
+      "sensitive": false
+    },
+    "mode": {
+      "type": "string",
+      "description": "Режим лимита. auto — максимум totalTokens по истории ccusage; fixed — явное значение из token_limit.",
+      "default": "auto",
+      "sensitive": false
+    },
+    "token_limit": {
+      "type": "number",
+      "description": "Жёсткий лимит токенов на 5-часовое окно (только при mode=fixed).",
+      "default": 220000000,
+      "sensitive": false
+    },
+    "throttle_seconds": {
+      "type": "number",
+      "description": "Минимальный интервал между проверками ccusage в секундах.",
+      "default": 30,
+      "sensitive": false
+    },
+    "resume_prompt": {
+      "type": "string",
+      "description": "Что придёт агенту, когда CronCreate-триггер сработает после сброса лимита.",
+      "default": "Лимит сброшен. Продолжай работу с того места, где остановился до паузы по usage-guard.",
+      "sensitive": false
+    }
+  }
 }

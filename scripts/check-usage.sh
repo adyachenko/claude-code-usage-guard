@@ -62,15 +62,18 @@ fi
 
 cfg() { jq -r "$1 // empty" "$CONFIG_FILE" 2>/dev/null; }
 
-# Приоритет: ENV > user config > default config > hard-coded fallback.
-# ENV-переменные позволяют переопределить настройки на лету из терминала:
-#   USAGE_GUARD_BLOCK_PCT=95 claude
-MODE="${USAGE_GUARD_MODE:-$(cfg '.mode')}"
-THRESHOLD="${USAGE_GUARD_BLOCK_PCT:-$(cfg '.threshold_block_pct')}"
-WARN="${USAGE_GUARD_WARN_PCT:-$(cfg '.threshold_warn_pct')}"
-THROTTLE="${USAGE_GUARD_THROTTLE:-$(cfg '.throttle_seconds')}"
-TOKEN_LIMIT_FIXED="${USAGE_GUARD_TOKEN_LIMIT:-$(cfg '.token_limit_5h')}"
-RESUME_PROMPT="${USAGE_GUARD_RESUME_PROMPT:-$(cfg '.resume_prompt')}"
+# Приоритет разрешения значения:
+#   1. USAGE_GUARD_*                  — ручной override в терминале (разово на сессию)
+#   2. CLAUDE_PLUGIN_OPTION_*         — из диалога /plugin userConfig (~/.claude/settings.json)
+#   3. ~/.config/usage-guard/limits.json  — персистентный пользовательский конфиг
+#   4. config/limits.json плагина     — defaults из манифеста
+#   5. hard-coded fallback            — на случай полного отсутствия конфига
+MODE="${USAGE_GUARD_MODE:-${CLAUDE_PLUGIN_OPTION_MODE:-$(cfg '.mode')}}"
+THRESHOLD="${USAGE_GUARD_BLOCK_PCT:-${CLAUDE_PLUGIN_OPTION_BLOCK_PCT:-$(cfg '.threshold_block_pct')}}"
+WARN="${USAGE_GUARD_WARN_PCT:-${CLAUDE_PLUGIN_OPTION_WARN_PCT:-$(cfg '.threshold_warn_pct')}}"
+THROTTLE="${USAGE_GUARD_THROTTLE:-${CLAUDE_PLUGIN_OPTION_THROTTLE_SECONDS:-$(cfg '.throttle_seconds')}}"
+TOKEN_LIMIT_FIXED="${USAGE_GUARD_TOKEN_LIMIT:-${CLAUDE_PLUGIN_OPTION_TOKEN_LIMIT:-$(cfg '.token_limit_5h')}}"
+RESUME_PROMPT="${USAGE_GUARD_RESUME_PROMPT:-${CLAUDE_PLUGIN_OPTION_RESUME_PROMPT:-$(cfg '.resume_prompt')}}"
 BUFFER_MIN="${USAGE_GUARD_BUFFER_MIN:-$(cfg '.reset_buffer_minutes')}"
 SKIP_LIST="$(jq -r '.skip_tools[]? // empty' "$CONFIG_FILE" 2>/dev/null)"
 

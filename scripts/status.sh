@@ -27,11 +27,11 @@ fi
 TOTAL="$(printf '%s' "$BLOCK" | jq -r '.totalTokens')"
 END="$(printf '%s' "$BLOCK" | jq -r '.endTime')"
 
-# Effective settings: ENV > config file (совпадает с логикой check-usage.sh).
-MODE="${USAGE_GUARD_MODE:-$(jq -r '.mode // "auto"' "$CONFIG_FILE")}"
-TH="${USAGE_GUARD_BLOCK_PCT:-$(jq -r '.threshold_block_pct' "$CONFIG_FILE")}"
-WARN="${USAGE_GUARD_WARN_PCT:-$(jq -r '.threshold_warn_pct' "$CONFIG_FILE")}"
-FIXED_LIMIT="${USAGE_GUARD_TOKEN_LIMIT:-$(jq -r '.token_limit_5h' "$CONFIG_FILE")}"
+# Effective settings: USAGE_GUARD_* > CLAUDE_PLUGIN_OPTION_* > config file (совпадает с check-usage.sh).
+MODE="${USAGE_GUARD_MODE:-${CLAUDE_PLUGIN_OPTION_MODE:-$(jq -r '.mode // "auto"' "$CONFIG_FILE")}}"
+TH="${USAGE_GUARD_BLOCK_PCT:-${CLAUDE_PLUGIN_OPTION_BLOCK_PCT:-$(jq -r '.threshold_block_pct' "$CONFIG_FILE")}}"
+WARN="${USAGE_GUARD_WARN_PCT:-${CLAUDE_PLUGIN_OPTION_WARN_PCT:-$(jq -r '.threshold_warn_pct' "$CONFIG_FILE")}}"
+FIXED_LIMIT="${USAGE_GUARD_TOKEN_LIMIT:-${CLAUDE_PLUGIN_OPTION_TOKEN_LIMIT:-$(jq -r '.token_limit_5h' "$CONFIG_FILE")}}"
 
 if [[ "$MODE" == "fixed" ]]; then
   LIMIT="$FIXED_LIMIT"
@@ -53,11 +53,14 @@ else
   STATE="enabled"
 fi
 
-# Активные env-override.
+# Активные env-override (включая значения из /plugin userConfig).
 OVERRIDES=""
 for v in USAGE_GUARD_MODE USAGE_GUARD_BLOCK_PCT USAGE_GUARD_WARN_PCT \
          USAGE_GUARD_TOKEN_LIMIT USAGE_GUARD_THROTTLE USAGE_GUARD_BUFFER_MIN \
-         USAGE_GUARD_RESUME_PROMPT; do
+         USAGE_GUARD_RESUME_PROMPT \
+         CLAUDE_PLUGIN_OPTION_MODE CLAUDE_PLUGIN_OPTION_BLOCK_PCT \
+         CLAUDE_PLUGIN_OPTION_WARN_PCT CLAUDE_PLUGIN_OPTION_TOKEN_LIMIT \
+         CLAUDE_PLUGIN_OPTION_THROTTLE_SECONDS CLAUDE_PLUGIN_OPTION_RESUME_PROMPT; do
   val="${!v:-}"
   [[ -n "$val" ]] && OVERRIDES+="  $v=$val"$'\n'
 done

@@ -106,7 +106,33 @@ $EDITOR ~/.config/usage-guard/limits.json
 
 ## Runtime-настройка из Claude Code CLI
 
-Приоритет значений: **ENV > `~/.config/usage-guard/limits.json` > default**. Любое значение из конфига можно переопределить на лету:
+Порядок разрешения значения (сверху вниз — побеждает первое заданное):
+
+1. **`USAGE_GUARD_*` env** — разовый override в терминале (`USAGE_GUARD_BLOCK_PCT=95 claude`)
+2. **`CLAUDE_PLUGIN_OPTION_*` env** — значения из `userConfig` плагина, хранятся в `~/.claude/settings.json → pluginConfigs["usage-guard@usage-guard"].options`
+3. **`~/.config/usage-guard/limits.json`** — пользовательский конфиг (редактируется `/usage-guard:set-threshold`)
+4. **`config/limits.json`** плагина — defaults
+
+### Настройки через `/plugin`
+
+В манифесте объявлены `userConfig` поля (`block_pct`, `warn_pct`, `mode`, `token_limit`, `throttle_seconds`, `resume_prompt`). Claude Code показывает диалог при первом включении плагина и сохраняет ответы в `~/.claude/settings.json`. Чтобы поменять их потом — отредактируй этот файл напрямую:
+
+```json
+// ~/.claude/settings.json
+{
+  "pluginConfigs": {
+    "usage-guard@usage-guard": {
+      "options": {
+        "block_pct": 95,
+        "mode": "fixed",
+        "token_limit": 300000000
+      }
+    }
+  }
+}
+```
+
+> Меню `/plugin → Installed → usage-guard` не поддерживает кастомные пункты (набор действий фиксированный в Claude Code). Для смены порога без правки файла используй slash-команды ниже или ENV.
 
 ### Slash-команды
 
