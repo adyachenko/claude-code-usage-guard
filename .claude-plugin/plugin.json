@@ -9,38 +9,44 @@
   "license": "MIT",
   "userConfig": {
     "block_pct": {
+      "title": "Порог блокировки (%)",
       "type": "number",
-      "description": "Процент потребления 5-часового окна, при котором плагин блокирует tool call и просит агента поставить CronCreate-триггер. Рекомендовано 95–98.",
+      "description": "При достижении этого процента 5-часового окна плагин блокирует tool call и просит агента поставить CronCreate-триггер. Рекомендовано 95–98.",
       "default": 98,
       "sensitive": false
     },
     "warn_pct": {
+      "title": "Порог предупреждения (%)",
       "type": "number",
-      "description": "Процент, при котором в stderr выводится предупреждение (агенту видно, но вызов пропускается).",
+      "description": "При этом проценте в stderr печатается warning (агенту видно), но вызов пропускается.",
       "default": 90,
       "sensitive": false
     },
     "mode": {
+      "title": "Режим расчёта лимита",
       "type": "string",
-      "description": "Режим лимита. auto — максимум totalTokens по истории ccusage; fixed — явное значение из token_limit.",
+      "description": "auto — максимум totalTokens по истории ccusage; fixed — явное значение из token_limit.",
       "default": "auto",
       "sensitive": false
     },
     "token_limit": {
+      "title": "Лимит токенов на 5-часовое окно",
       "type": "number",
-      "description": "Жёсткий лимит токенов на 5-часовое окно (только при mode=fixed).",
+      "description": "Жёсткий лимит (используется только при mode=fixed).",
       "default": 220000000,
       "sensitive": false
     },
     "throttle_seconds": {
+      "title": "Минимальный интервал между проверками (сек)",
       "type": "number",
-      "description": "Минимальный интервал между проверками ccusage в секундах.",
+      "description": "Реже запускать ccusage, чтобы снизить накладные расходы хука.",
       "default": 30,
       "sensitive": false
     },
     "resume_prompt": {
+      "title": "Prompt при возобновлении",
       "type": "string",
-      "description": "Что придёт агенту, когда CronCreate-триггер сработает после сброса лимита.",
+      "description": "Текст, который придёт агенту, когда CronCreate-триггер сработает после сброса лимита.",
       "default": "Лимит сброшен. Продолжай работу с того места, где остановился до паузы по usage-guard.",
       "sensitive": false
     }
