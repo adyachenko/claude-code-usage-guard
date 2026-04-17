@@ -2,6 +2,14 @@
 
 Semver: MAJOR.MINOR.PATCH.
 
+## [0.1.4] — 2026-04-17
+
+- **marketplace.json**: `source` переведён с `github`-объекта на relative path `"./"`.
+  Для single-plugin-в-том-же-репо это документированный паттерн. При `source: github`,
+  указывающем на тот же репо, что и маркетплейс, Claude Code создавал пустые
+  `temp_github_*` директории в кэше и плагин не загружался — команды не
+  регистрировались, хотя статус был "Enabled".
+
 ## [0.1.3] — 2026-04-17
 
 - **marketplace.json**: `description` перенесён в `metadata.description` (соответствие документации Claude Code).
